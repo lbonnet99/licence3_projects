@@ -1,0 +1,469 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+enum type{
+	parenthese,
+	oper_bin, //opérateur binaire
+	oper_un, //opérateur unaire
+	constante	
+};
+typedef enum type TYPE;
+
+struct token{
+	TYPE type_tok;//type de token 
+	char* valeur; 
+	struct token* suivant;	
+};
+typedef struct token* liste_token;
+
+struct Arbre {
+	TYPE type_tok;//type de token 
+	char* valeur; 
+	struct Arbre* g;
+	struct Arbre* d;
+};
+typedef struct Arbre* Arbre_token;
+
+Arbre_token creer_arbre(TYPE type_tok,char* valeur,Arbre_token g, Arbre_token d){
+  Arbre_token a;
+  a = malloc(sizeof(struct Arbre));
+  if(a == NULL){
+    fprintf(stderr, "Erreur allocation memoire pour arbre\n");
+    exit(EXIT_FAILURE);
+  }
+  a->type_tok = type_tok; a->valeur = valeur;
+  a->g = g;a->d = d;
+  return a;
+}
+
+void free_arbre_token(Arbre_token at){
+	if(at){
+		free_arbre_token(at->g);
+		free_arbre_token(at->d);
+		free(at);
+	}
+}
+
+liste_token passer_parenthese(liste_token l){
+	liste_token ll = l;
+	int continuer = 1, cmp = 0;
+	while(continuer){
+		if(ll!=NULL)
+		{
+			if(!strcmp(ll->valeur,"("))
+			{
+				cmp++;
+			}
+			if(!strcmp(ll->valeur,")"))
+			{
+				cmp--;			
+			}
+			
+			ll = ll->suivant;
+			if(cmp==0)
+				continuer = 0;
+		}
+		else
+			continuer = 0;
+	}
+	return ll;
+}
+
+void affiche_arbre_prof(Arbre_token a, int p){
+  int i;
+  if(a != NULL){
+    for(i=0; i<p; i++)//decalage selon la profondeur
+      printf("     ");
+    printf("%s\n", a->valeur);
+    affiche_arbre_prof(a->d, p+1);
+    affiche_arbre_prof(a->g, p+1);
+
+  }
+}
+
+void affiche_arbre(Arbre_token a){
+ 	affiche_arbre_prof(a, 0);
+	
+}
+
+
+
+/*fonction qui retourne la position de la première parenthèse
+ * ouvrante dans une liste de token l donné en argument
+ * return 	position de la 1ere parenthèse ouvrante
+ * 			-1 s'il y en a pas */
+int pos_premiere_par_ouv(liste_token l)
+{
+	liste_token ll = l;
+	int pos = 0;
+	while(ll!=NULL)
+	{
+		if(ll->type_tok==parenthese)
+		{
+			return pos;
+		}
+		pos++;
+		ll = ll->suivant;
+	}
+	
+	return -1;
+}
+
+int calcul(int a, int b, char* c){
+	if(!strcmp(c,"+"))
+		return (a+b)%2;
+	if(!strcmp(c,"."))
+		 return a*b;
+	if(!strcmp(c,"=>"))
+	{
+		if(a==0)
+			return 1;
+		else //a = 1
+		{
+			if(b==0)
+				return 0;
+			if(b==1)
+				return 1;
+		}		
+	}
+		 
+	if(!strcmp(c,"<=>"))
+	{
+		if(a==b)
+			return 1;
+		else
+			return 0;
+	}		 
+	return -1;
+	
+}
+
+int eval (Arbre_token a)
+{
+	if(a->type_tok==constante) return atoi(a->valeur);
+	return calcul(eval(a->g),eval(a->d),a->valeur);	
+}
+
+liste_token ajout_elem_fin(TYPE type_tok,char* valeur,liste_token l)
+{
+	liste_token new = malloc(sizeof(struct token));
+	if(new == NULL){
+		fprintf(stderr,"ERREUR : échec malloc\n");
+		exit(EXIT_FAILURE);
+		
+	}
+	new->valeur = valeur;
+	new->type_tok = type_tok;
+	new->suivant = NULL;
+	if(l==NULL)
+		return new;
+	else
+	{
+		liste_token ll = l;
+		while(ll->suivant!=NULL)
+		{
+			ll = ll->suivant;			
+		}
+		ll->suivant = new;
+		return l;
+	}
+}
+
+void free_liste_token(liste_token liste){
+	while(liste){
+		free(liste);
+		liste = liste->suivant;
+	}
+}
+
+liste_token supprimer_deb(liste_token l)
+{
+	if(l != NULL)
+	{
+		liste_token aRenvoyer = l->suivant;
+		free(l);
+		return aRenvoyer;
+	}
+	else
+	{
+		fprintf(stderr, "ERREUR : suppression dans liste vide\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+liste_token supprime_fin(liste_token l){
+	if(l==NULL){
+		fprintf(stderr, "ERREUR : suppression dans liste vide\n");
+		exit(EXIT_FAILURE);
+	}
+	if(l->suivant == NULL) return supprimer_deb(l);
+	l->suivant = supprime_fin(l->suivant);
+	return l;
+}
+/*avoir le contenu d'une liste dans une parenthèse*/
+liste_token liste_ds_parenth(liste_token l)
+{
+	int cmp = 0; int continuer = 1;
+	liste_token new = NULL;
+	while(continuer)
+	{
+		if(l!=NULL)
+		{
+			if(!strcmp(l->valeur,"("))
+			{
+				cmp++;
+			}
+			if(!strcmp(l->valeur,")"))
+			{
+				cmp--;
+			}		
+			new = ajout_elem_fin(l->type_tok,l->valeur,new);
+			l = l->suivant;
+			if(cmp==0)
+				continuer = 0;
+		}
+		else
+			continuer = 0;
+	}
+	
+	//supprimer les parenthèses de début et de fin 
+	//pour avoir seulement le contenu donc supprimer le premier et le dernier élément de la liste
+	
+	new = supprimer_deb(new);
+	new = supprime_fin(new); 
+	
+	
+	
+	return new;
+	
+}
+
+Arbre_token ss_arbre_droit(liste_token l)
+{
+	Arbre_token at = NULL;
+	if(l!=NULL)
+	{
+		if(l->type_tok==constante)
+		{
+			at = creer_arbre(l->type_tok,l->valeur,NULL,NULL);
+			
+		}
+		if(l->type_tok==oper_un)
+		{
+			at = creer_arbre(l->type_tok,l->valeur,NULL,ss_arbre_droit(l->suivant));
+			
+		}
+		
+	}
+	return at;
+	
+}
+
+
+Arbre_token liste_to_arbre(liste_token l)
+{
+	liste_token copie = l;
+	Arbre_token at = NULL;
+	while(copie!=NULL)
+	{
+		if(copie->type_tok==parenthese)
+		{
+			//at = creer_arbre(parenthese,copie->valeur,NULL,NULL);
+			
+			at = liste_to_arbre(liste_ds_parenth(l));
+			copie = passer_parenthese(copie);
+		}
+		if(copie->type_tok==oper_un)
+		{
+			at = creer_arbre(copie->type_tok,copie->valeur,NULL,ss_arbre_droit(copie->suivant));
+			
+			//l'opérateur non est forcément suivi de quelque chose
+			if(copie->suivant->type_tok==constante)
+				copie = copie->suivant;
+			
+			if(copie->suivant!=NULL)
+			{
+				if(copie->suivant->type_tok==oper_bin)
+					copie = copie->suivant;
+			}
+		}
+		if(copie->type_tok==constante)
+		{
+			at = creer_arbre(constante,copie->valeur,NULL,NULL);		
+		}
+		if(copie->type_tok==oper_bin)
+		{
+			Arbre_token at_prec = at;
+			at = creer_arbre(oper_bin,copie->valeur,at_prec,ss_arbre_droit(copie->suivant));
+			if(copie->suivant!=NULL)
+			{	
+				if(copie->suivant->type_tok==constante)			
+					copie = copie->suivant;
+			}
+			if(copie->suivant!=NULL)
+			{
+				if(copie->suivant->type_tok==oper_un)
+					copie = copie->suivant->suivant;
+			}
+		}
+		if(copie!= NULL) 
+			copie = copie->suivant;
+	}
+	return at;
+}
+
+
+liste_token string_to_token(char* string)
+{
+	int longueur = strlen(string);
+	
+	int i;
+	liste_token l = NULL;
+	for(i=0;i<longueur;i++)
+	{
+		if(string[i] == '(')
+			l = ajout_elem_fin(parenthese,"(",l);
+		if(string[i] == ')')
+			l = ajout_elem_fin(parenthese,")",l);
+		if(string[i] == '+')
+			l = ajout_elem_fin(oper_bin,"+",l);
+		if(string[i] == '.')
+			l = ajout_elem_fin(oper_bin,".",l);
+		if(string[i] == '<')
+		{
+			l = ajout_elem_fin(oper_bin,"<=>",l);
+			i=i+3;
+		}//pour sauter = et > de l'équivalence
+		if(string[i] == '>')
+			l = ajout_elem_fin(oper_bin,"=>",l);
+		if(string[i] == 'O')
+			l = ajout_elem_fin(oper_un,"NON",l);
+			
+			
+		if(string[i] == '0')
+			l = ajout_elem_fin(constante,"0",l);
+		if(string[i] == '1')
+			l = ajout_elem_fin(constante,"1",l);
+		
+	}
+	
+	return l;
+}
+
+void affiche_liste(liste_token l)
+{
+	int nb = 0;
+	while(l!=NULL)
+	{
+		printf("element %d, valeur = %s\n",nb,l->valeur);
+		
+		l = l->suivant;
+		nb++;
+	}
+}
+
+/* fonction pour vérifier si une expression stockée dans la liste l est une expression booléenne
+ * return	1	si oui
+ * 			0	sinon
+ * */
+int verif_exp(liste_token l)
+{
+	int nb_par = 0; // compteur pour les parenthèses : +1 si par ouvrante -1 pour fermante
+	int cst = 0; //vérifier qu'il y a constante puis op binaire puis constante
+	int non = 0; 
+	while(l!=NULL)
+	{
+		if(l->type_tok==parenthese)
+		{
+			if(!strcmp(l->valeur,"("))
+				nb_par ++;
+			else //parenthèse fermante
+				nb_par --;
+		}
+		
+		if(l->type_tok==oper_un)
+		{
+			non ++;
+			if(l->suivant->type_tok==constante)
+				non --;
+		}
+		if(l->type_tok==constante)
+		{
+			if(cst==0 || cst==1)
+			{
+				cst ++;;
+			}
+			
+			if(cst==3)
+			{
+				cst = 1;
+			}
+		}
+		if(l->type_tok==oper_bin)
+		{
+			cst+=2;
+		}
+		l = l->suivant;
+	}
+	
+	if(nb_par!=0 || non!=0 || cst!=1)
+		return 0;
+	return 1;
+}
+int main()
+{
+	char exp[] = "(1.( (0 +1)=>NON1))<=> (1 => 0)";
+	char exp2[] = "(1.( (0 1)=>NON1))<=> (1 => 0)";
+	char exp3[] = "(.( (0 1)=>NON1))<=> (1 => 0)";
+	char exp4[] = " 1.NON1<=> (1 => 0)";
+	char exp5[] = "(NON0 + 1 )<=> NON0 + NON1";
+	printf("%s\n",exp);
+	liste_token l = string_to_token(exp);
+	liste_token m = string_to_token(exp2);
+	liste_token n = string_to_token(exp3);
+	liste_token o = string_to_token(exp4);
+	liste_token p = string_to_token(exp5);
+	if(!verif_exp(l))
+		printf("FAUX\n");
+	else
+		printf("VRAI\n");
+	
+	affiche_liste(l);
+	printf("pos 1ere parethese ouvr: %d\n",pos_premiere_par_ouv(l)); 
+	printf("##############################################\n");
+	affiche_liste(passer_parenthese(l));
+	printf("##############################################\n");
+	affiche_liste(liste_ds_parenth(l));
+	printf("##############################################\n");	
+	printf("%s\n",exp2);
+	if(!verif_exp(m))
+		printf("FAUX\n");
+	else
+		printf("VRAI\n");
+	
+	affiche_liste(m);
+	printf("##############################################\n");
+	printf("%s\n",exp3);
+	if(!verif_exp(n))
+		printf("FAUX\n");
+	else
+		printf("VRAI\n");
+	
+	affiche_liste(n);
+	printf("##############################################\n");
+	printf("%s\n",exp4); 
+	if(!verif_exp(o))
+		printf("FAUX\n");
+	else
+		printf("VRAI\n");
+	printf("##############################################\n");
+	
+	 printf("%s\n",exp5);
+	 affiche_liste(p);
+	 Arbre_token P = liste_to_arbre(p);
+	affiche_arbre(P);
+	free_arbre_token(P);
+	free_liste_token(p);
+	printf("##############################################\n");
+	return 0;
+}
